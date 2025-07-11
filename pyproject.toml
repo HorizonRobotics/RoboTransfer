@@ -1,0 +1,18 @@
+[project]
+name = "robotransfer"
+version = "0.1.0"
+description = "Geometry-Consistent Video Diffusion for Robotic Visual Policy Transfer"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "accelerate>=1.8.1",
+    "datasets>=4.0.0",
+    "diffusers>=0.34.0",
+    "einops>=0.8.1",
+    "imageio[ffmpeg]>=2.37.0",
+    "torch>=2.7.1",
+    "transformers>=4.53.1",
+]
+
+[tool.setuptools.packages.find]
+where = ["robotransfer"]
