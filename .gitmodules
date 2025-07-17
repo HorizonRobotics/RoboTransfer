@@ -1,0 +1,6 @@
+[submodule "submodule/Lotus"]
+	path = submodule/Lotus
+	url = https://github.com/EnVision-Research/Lotus.git
+[submodule "submodule/Video-Depth-Anything"]
+	path = submodule/Video-Depth-Anything
+	url = https://github.com/DepthAnything/Video-Depth-Anything

@@ -1,13 +1,32 @@
-import os
-import torch
-import numpy as np
-from PIL import Image
+# Project RoboTransfer
+#
+# Copyright (c) 2025 Horizon Robotics and GigaAI. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+# implied. See the License for the specific language governing
+# permissions and limitations under the License.
 
+import os
+
+import numpy as np
+import torch
 from datasets.arrow_dataset import Dataset
+from PIL import Image
 
 
 def load_images_from_dataset(
-    dataset: Dataset, target_size: None | tuple[int] = (640, 384), frames_start=0, frames_end=30
+    dataset: Dataset,
+    target_size: None | tuple[int] = (640, 384),
+    frames_start=0,
+    frames_end=30,
 ):
     temporal_depth_images = []
     temporal_normal_images = []
@@ -29,9 +48,9 @@ def load_images_from_dataset(
             depth_middle_image = depth_middle_image.resize(size=target_size)
             depth_right_image = depth_right_image.resize(size=target_size)
 
-        normal_left_image, normal_middle_image, normal_right_image = dataset[i][
-            "normal_images"
-        ]
+        normal_left_image, normal_middle_image, normal_right_image = dataset[
+            i
+        ]["normal_images"]
         if target_size is not None:
             normal_left_image = normal_left_image.resize(size=target_size)
             normal_middle_image = normal_middle_image.resize(size=target_size)
@@ -56,14 +75,50 @@ def load_images_from_dataset(
         temporal_depth_images.append(depth_image)
         temporal_normal_images.append(normal_image)
     temporal_depth_image = np.stack(temporal_depth_images, axis=0)
-    temporal_depth_image_pt = torch.from_numpy(temporal_depth_image).unsqueeze(dim=1)
+    temporal_depth_image_pt = torch.from_numpy(temporal_depth_image).unsqueeze(
+        dim=1
+    )
     temporal_normal_image = np.stack(temporal_normal_images, axis=0)
     temporal_normal_image_pt = torch.from_numpy(temporal_normal_image).permute(
         0, 3, 1, 2
     )
-    return temporal_depth_image_pt.clip(
-        min=0.1, max=2.0
-    ), 2 * temporal_normal_image_pt - 1, scene_id_has_changed
+    return (
+        temporal_depth_image_pt.clip(min=0.1, max=2.0),
+        2 * temporal_normal_image_pt - 1,
+        scene_id_has_changed,
+    )
+
+
+def get_dataset_length(data_root: str):
+    """Get the length of the dataset by checking the number of images in each camera's directory.
+
+    Args:
+        data_root (str): The root directory of the dataset.
+
+    Returns:
+        int: The length of the dataset, which is the number of images in each camera's directory.
+    """
+
+    normal_left_images_path = os.path.join(
+        data_root, "left_camera", "mono_normal"
+    )
+    normal_middle_images_path = os.path.join(
+        data_root, "middle_camera", "mono_normal"
+    )
+    normal_right_images_path = os.path.join(
+        data_root, "right_camera", "mono_normal"
+    )
+
+    length_left = len(os.listdir(normal_left_images_path))
+    length_middle = len(os.listdir(normal_middle_images_path))
+    length_right = len(os.listdir(normal_right_images_path))
+    if length_left == length_middle == length_right:
+        return length_left
+    else:
+        raise ValueError(
+            "The length of the dataset is not equal for all cameras. "
+            f"Left: {length_left}, Middle: {length_middle}, Right: {length_right}"
+        )
 
 
 def load_images_from_local(
@@ -78,11 +133,21 @@ def load_images_from_local(
         else "depth"
     )
     depth_left_images_path = os.path.join(data_root, "left_camera", depth_key)
-    depth_middle_images_path = os.path.join(data_root, "middle_camera", depth_key)
-    depth_right_images_path = os.path.join(data_root, "right_camera", depth_key)
-    normal_left_images_path = os.path.join(data_root, "left_camera", "mono_normal")
-    normal_middle_images_path = os.path.join(data_root, "middle_camera", "mono_normal")
-    normal_right_images_path = os.path.join(data_root, "right_camera", "mono_normal")
+    depth_middle_images_path = os.path.join(
+        data_root, "middle_camera", depth_key
+    )
+    depth_right_images_path = os.path.join(
+        data_root, "right_camera", depth_key
+    )
+    normal_left_images_path = os.path.join(
+        data_root, "left_camera", "mono_normal"
+    )
+    normal_middle_images_path = os.path.join(
+        data_root, "middle_camera", "mono_normal"
+    )
+    normal_right_images_path = os.path.join(
+        data_root, "right_camera", "mono_normal"
+    )
 
     depth_left_images = sorted(os.listdir(depth_left_images_path))[
         frames_start:frames_end
@@ -169,11 +234,14 @@ def load_images_from_local(
         temporal_depth_images.append(depth_image)
         temporal_normal_images.append(normal_image)
     temporal_depth_image = np.stack(temporal_depth_images, axis=0)
-    temporal_depth_image_pt = torch.from_numpy(temporal_depth_image).unsqueeze(dim=1)
+    temporal_depth_image_pt = torch.from_numpy(temporal_depth_image).unsqueeze(
+        dim=1
+    )
     temporal_normal_image = np.stack(temporal_normal_images, axis=0)
     temporal_normal_image_pt = torch.from_numpy(temporal_normal_image).permute(
         0, 3, 1, 2
     )
-    return temporal_depth_image_pt.clip(
-        min=0.1, max=2.0
-    ), 2 * temporal_normal_image_pt - 1
+    return (
+        temporal_depth_image_pt.clip(min=0.1, max=2.0),
+        2 * temporal_normal_image_pt - 1,
+    )
