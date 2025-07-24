@@ -27,13 +27,12 @@ from robotransfer.utils.image_loading import (
 )
 from robotransfer.utils.save_video import save_images_to_mp4
 
-
 def main():
     parser = argparse.ArgumentParser(description="Run RoboTransfer example.")
     parser.add_argument(
         "--dataset_path",
         type=str,
-        default="wkqin/robotransfer-example-dataset",
+        default="HorizonRobotics/RoboTransfer-RealData",
         help="Path to the dataset.",
     )
     parser.add_argument(
@@ -56,16 +55,18 @@ def main():
     output_dir = args.output_dir
 
     # Load the dataset
-    if dataset_path.startswith("wkqin"):
-        dataset = load_dataset(dataset_path)["train"]
+    if dataset_path.startswith("HorizonRobotics"):
+        print(f"Loading dataset from Hugging Face: {dataset_path}")
+        dataset = load_dataset(dataset_path)
         load_loacal_dataset = False
-        length = len(dataset)
+        length = len(dataset["train"])
     else:
+        print(f"Loading local dataset from local path: {dataset_path}")
         load_loacal_dataset = True
         length = get_dataset_length(dataset_path)
 
     pipe = RoboTransferPipeline.from_pretrained(
-        "wkqin/robotransfer-high-resolution",
+        "HorizonRobotics/RoboTransfer",
         torch_dtype=torch.bfloat16,
         trust_remote_code=True,
     )
