@@ -12,7 +12,7 @@
 
 We use uv to manage dependencies, to get our environments:
 ```bash
-git clone https://github.com/HorizonRobotics/RoboTransfer.git --recursive
+git clone https://github.com/HorizonRobotics/RoboTransfer.git
 cd RoboTransfer
 export UV_HTTP_TIMEOUT=600
 uv sync
@@ -22,8 +22,7 @@ uv pip install -e .
 ## 🚀 Inference
 
 ```bash
-# --mem_efficient for 4090
-uv run main.py
+uv run main.py # --mem_efficient for 4090
 ```
 
 
