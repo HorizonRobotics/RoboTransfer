@@ -3,7 +3,7 @@ name = "robotransfer"
 version = "0.1.0"
 description = "Geometry-Consistent Video Diffusion for Robotic Visual Policy Transfer"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 dependencies = [
     "accelerate>=1.8.1",
     "datasets>=4.0.0",

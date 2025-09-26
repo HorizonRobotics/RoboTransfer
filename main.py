@@ -13,7 +13,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
 # implied. See the License for the specific language governing
 # permissions and limitations under the License.
-
+import os
 import argparse
 
 import torch
@@ -47,6 +47,13 @@ def main():
         default="./output",
         help="Path to save the output video.",
     )
+    #flag
+    parser.add_argument(
+        "--mem_efficient",
+        action="store_true",
+        help="Whether to use memory efficient mode for 4090.",
+
+    )
     args = parser.parse_args()
 
     # Set the paths from the arguments
@@ -54,12 +61,15 @@ def main():
     refer_image_path = args.refer_image_path
     output_dir = args.output_dir
 
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
     # Load the dataset
     if dataset_path.startswith("HorizonRobotics"):
         print(f"Loading dataset from Hugging Face: {dataset_path}")
-        dataset = load_dataset(dataset_path)
+        dataset = load_dataset(dataset_path, split="train")
+        length = len(dataset)
         load_loacal_dataset = False
-        length = len(dataset["train"])
     else:
         print(f"Loading local dataset from local path: {dataset_path}")
         load_loacal_dataset = True
@@ -71,6 +81,14 @@ def main():
         trust_remote_code=True,
     )
     pipe.to("cuda")
+
+    if args.mem_efficient:
+        # Enable model CPU offload to save GPU memory  
+        pipe.enable_model_cpu_offload()
+
+        # Clear GPU cache
+        torch.cuda.empty_cache()
+
 
     frames = []
     for i in range(0, length - 30, 30):
@@ -97,7 +115,11 @@ def main():
             width=640 * 3,
             num_frames=30,
             num_inference_steps=25,
+            decode_chunk_size=1,  # Decode one frame at a time to save memory
         ).frames[0]
+
+        if args.mem_efficient:
+            torch.cuda.empty_cache()
 
         if save_video:
             save_images_to_mp4(

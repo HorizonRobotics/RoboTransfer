@@ -22,6 +22,7 @@ uv pip install -e .
 ## 🚀 Inference
 
 ```bash
+# --mem_efficient for 4090
 uv run main.py
 ```
 
