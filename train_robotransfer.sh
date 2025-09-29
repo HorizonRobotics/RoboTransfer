@@ -34,7 +34,7 @@ accelerate launch  train_robotransfer.py \
   --learning_rate=3e-05 --lr_scheduler="constant" --lr_warmup_steps=0 \
   --mixed_precision="fp16" \
   --report_to="wandb" \
-  --checkpointing_steps=2 \
+  --checkpointing_steps=1000 \
   --output_dir="/horizon-bucket/robot_lab/users/jiagang.zhu/checkpoint/nemo_sorted_3v_high" \
   --dataloader_num_workers 8 \
   --frame_num 8 \
