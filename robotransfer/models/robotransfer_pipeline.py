@@ -1,19 +1,3 @@
-# Project RoboTransfer
-#
-# Copyright (c) 2025 Horizon Robotics and GigaAI. All Rights Reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#       http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
-# implied. See the License for the specific language governing
-# permissions and limitations under the License.
-
 # Copy-paste from diffusers.StableVideoDiffusionPipeline with modifications
 
 from typing import Callable, Dict, List, Optional, Union
@@ -54,9 +38,7 @@ class RoboTransferPipeline(StableVideoDiffusionPipeline):
         scheduler: EulerDiscreteScheduler,
         feature_extractor: CLIPImageProcessor,
     ):
-        super().__init__(
-            vae, image_encoder, unet, scheduler, feature_extractor
-        )
+        super().__init__(vae, image_encoder, unet, scheduler, feature_extractor)
 
         self.register_modules(
             depth_guider_net=depth_guider_net,
@@ -115,6 +97,7 @@ class RoboTransferPipeline(StableVideoDiffusionPipeline):
     def __call__(
         self,
         image: Union[PIL.Image.Image, List[PIL.Image.Image], torch.Tensor],
+        obj_image: Union[PIL.Image.Image, List[PIL.Image.Image], torch.Tensor],
         depth_guider_images: torch.Tensor,
         normal_guider_images: torch.Tensor,
         height: int = 576,
@@ -129,18 +112,15 @@ class RoboTransferPipeline(StableVideoDiffusionPipeline):
         noise_aug_strength: float = 0.02,
         decode_chunk_size: Optional[int] = None,
         num_videos_per_prompt: Optional[int] = 1,
-        generator: Optional[
-            Union[torch.Generator, List[torch.Generator]]
-        ] = None,
+        generator: Optional[Union[torch.Generator, List[torch.Generator]]] = None,
         latents: Optional[torch.Tensor] = None,
         output_type: Optional[str] = "pil",
-        callback_on_step_end: Optional[
-            Callable[[int, int, Dict], None]
-        ] = None,
+        callback_on_step_end: Optional[Callable[[int, int, Dict], None]] = None,
         callback_on_step_end_tensor_inputs: List[str] = ["latents"],
         return_dict: bool = True,
     ):
-        """The call function to the pipeline for generation.
+        r"""
+        The call function to the pipeline for generation.
 
         Args:
             image (`PIL.Image.Image` or `List[PIL.Image.Image]` or `torch.Tensor`):
@@ -202,6 +182,8 @@ class RoboTransferPipeline(StableVideoDiffusionPipeline):
                 Whether or not to return a [`~pipelines.stable_diffusion.StableDiffusionPipelineOutput`] instead of a
                 plain tuple.
 
+        Examples:
+
         Returns:
             [`~pipelines.stable_diffusion.StableVideoDiffusionPipelineOutput`] or `tuple`:
                 If `return_dict` is `True`, [`~pipelines.stable_diffusion.StableVideoDiffusionPipelineOutput`] is
@@ -213,9 +195,7 @@ class RoboTransferPipeline(StableVideoDiffusionPipeline):
         width = width or self.unet.config.sample_size * self.vae_scale_factor
 
         num_frames = (
-            num_frames
-            if num_frames is not None
-            else self.unet.config.num_frames
+            num_frames if num_frames is not None else self.unet.config.num_frames
         )
         decode_chunk_size = (
             decode_chunk_size if decode_chunk_size is not None else num_frames
@@ -244,23 +224,46 @@ class RoboTransferPipeline(StableVideoDiffusionPipeline):
             depth_guider_images = depth_guider_images.unsqueeze(dim=0)
         if normal_guider_images.ndim == 4:
             normal_guider_images = normal_guider_images.unsqueeze(dim=0)
-
+            
         # 3. Encode input image
         image_embeddings = self._encode_image(
-            image,
-            device,
-            num_videos_per_prompt,
-            self.do_classifier_free_guidance,
+            image, device, num_videos_per_prompt, self.do_classifier_free_guidance
         )
+
+        if obj_image is not None:
+            # 3.1 Encode input obj image
+            num_objs = len(obj_image)
+            bs = image_embeddings.shape[0]
+            feat_dim = image_embeddings.shape[-1]
+            if num_objs > 0:
+                obj_image_embeddings = self._encode_image(
+                    obj_image, device, num_videos_per_prompt, self.do_classifier_free_guidance
+                )
+                feat_dim = obj_image_embeddings.shape[-1]
+
+                obj_image_embeddings = obj_image_embeddings.view(-1, num_objs, feat_dim)
+                bs = obj_image_embeddings.shape[0]
+                image_embeddings = torch.cat([image_embeddings, obj_image_embeddings], dim=1)
+        
+            MAX_NUM_OBJS = 10
+            encoder_attention_mask = torch.zeros((bs, 1, MAX_NUM_OBJS + 1), device=device, dtype=image_embeddings.dtype)
+            num_pad_objs = MAX_NUM_OBJS - num_objs
+            if num_pad_objs > 0:
+                pad_obj_image_embeddings = torch.zeros((bs, num_pad_objs, feat_dim), device=device, dtype=image_embeddings.dtype)
+                image_embeddings = torch.cat([image_embeddings, pad_obj_image_embeddings], dim=1)
+                encoder_attention_mask[:, :, -num_pad_objs:] = float('-inf')
+            image_embeddings = image_embeddings[:,:MAX_NUM_OBJS+1]
+            print("encoder_attention_mask: ", encoder_attention_mask)
+            print("num_objs: ", num_objs)
 
         # NOTE: Stable Video Diffusion was conditioned on fps - 1, which is why it is reduced here.
         # See: https://github.com/Stability-AI/generative-models/blob/ed0997173f98eaf8f4edf7ba5fe8f15c6b877fd3/scripts/sampling/simple_video_sample.py#L188
         fps = fps - 1
 
         # 4. Encode input image using VAE
-        image = self.video_processor.preprocess(
-            image, height=height, width=width
-        ).to(device)
+        image = self.video_processor.preprocess(image, height=height, width=width).to(
+            device
+        )
         noise = randn_tensor(
             image.shape, generator=generator, device=device, dtype=image.dtype
         )
@@ -286,9 +289,7 @@ class RoboTransferPipeline(StableVideoDiffusionPipeline):
 
         # Repeat the image latents for each frame so we can concatenate them with the noise
         # image_latents [batch, channels, height, width] ->[batch, num_frames, channels, height, width]
-        image_latents = image_latents.unsqueeze(1).repeat(
-            1, num_frames, 1, 1, 1
-        )
+        image_latents = image_latents.unsqueeze(1).repeat(1, num_frames, 1, 1, 1)
 
         # 5. Get Added Time IDs
         added_time_ids = self._get_add_time_ids(
@@ -328,17 +329,13 @@ class RoboTransferPipeline(StableVideoDiffusionPipeline):
 
         # depth_guider_images: [batch_size, num_frames, num_channels, height, width]
         depth_guider_images = depth_guider_images.to(
-            dtype=self.depth_guider_net.dtype,
-            device=self.depth_guider_net.device,
+            dtype=self.depth_guider_net.dtype, device=self.depth_guider_net.device
         )
         normal_guider_images = normal_guider_images.to(
-            dtype=self.normal_guider_net.dtype,
-            device=self.normal_guider_net.device,
+            dtype=self.normal_guider_net.dtype, device=self.normal_guider_net.device
         )
 
-        depth_guider_images = rearrange(
-            depth_guider_images, "b f c h w -> (b f) c h w"
-        )
+        depth_guider_images = rearrange(depth_guider_images, "b f c h w -> (b f) c h w")
         depth_condition_latents = self.depth_guider_net(depth_guider_images)
         depth_condition_latents = rearrange(
             depth_condition_latents, "(b f) c h w -> b f c h w", b=batch_size
@@ -367,17 +364,13 @@ class RoboTransferPipeline(StableVideoDiffusionPipeline):
             min_guidance_scale, max_guidance_scale, num_frames
         ).unsqueeze(0)
         guidance_scale = guidance_scale.to(device, latents.dtype)
-        guidance_scale = guidance_scale.repeat(
-            batch_size * num_videos_per_prompt, 1
-        )
+        guidance_scale = guidance_scale.repeat(batch_size * num_videos_per_prompt, 1)
         guidance_scale = _append_dims(guidance_scale, latents.ndim)
 
         self._guidance_scale = guidance_scale
 
         # 9. Denoising loop
-        num_warmup_steps = (
-            len(timesteps) - num_inference_steps * self.scheduler.order
-        )
+        num_warmup_steps = len(timesteps) - num_inference_steps * self.scheduler.order
         self._num_timesteps = len(timesteps)
         with self.progress_bar(total=num_inference_steps) as progress_bar:
             for i, t in enumerate(timesteps):
@@ -409,6 +402,7 @@ class RoboTransferPipeline(StableVideoDiffusionPipeline):
                     encoder_hidden_states=image_embeddings,
                     added_time_ids=added_time_ids,
                     return_dict=False,
+                    encoder_attention_mask=encoder_attention_mask
                 )[0]
 
                 # perform guidance
@@ -419,23 +413,18 @@ class RoboTransferPipeline(StableVideoDiffusionPipeline):
                     )
 
                 # compute the previous noisy sample x_t -> x_t-1
-                latents = self.scheduler.step(
-                    noise_pred, t, latents
-                ).prev_sample
+                latents = self.scheduler.step(noise_pred, t, latents).prev_sample
 
                 if callback_on_step_end is not None:
                     callback_kwargs = {}
                     for k in callback_on_step_end_tensor_inputs:
                         callback_kwargs[k] = locals()[k]
-                    callback_outputs = callback_on_step_end(
-                        self, i, t, callback_kwargs
-                    )
+                    callback_outputs = callback_on_step_end(self, i, t, callback_kwargs)
 
                     latents = callback_outputs.pop("latents", latents)
 
                 if i == len(timesteps) - 1 or (
-                    (i + 1) > num_warmup_steps
-                    and (i + 1) % self.scheduler.order == 0
+                    (i + 1) > num_warmup_steps and (i + 1) % self.scheduler.order == 0
                 ):
                     progress_bar.update()
 
@@ -443,9 +432,7 @@ class RoboTransferPipeline(StableVideoDiffusionPipeline):
             # cast back to fp16 if needed
             if needs_upcasting:
                 self.vae.to(dtype=torch.float16)
-            frames = self.decode_latents(
-                latents, num_frames, decode_chunk_size
-            )
+            frames = self.decode_latents(latents, num_frames, decode_chunk_size)
             frames = self.video_processor.postprocess_video(
                 video=frames, output_type=output_type
             )
