@@ -1,4 +1,4 @@
-# [CVPR2026] *RoboTransfer*: Geometry-Consistent Video Diffusion for Robotic Visual Policy Transfer
+# [CVPR 2026F] *RoboTransfer*: Geometry-Consistent Video Diffusion for Robotic Visual Policy Transfer
 [![🌐 Project Page](https://img.shields.io/badge/🌐-Project_Page-blue)](https://horizonrobotics.github.io/robot_lab/robotransfer)
 [![📄 arXiv](https://img.shields.io/badge/📄-arXiv-b31b1b)](https://arxiv.org/abs/2505.23171)
 [![🎥 Video](https://img.shields.io/badge/🎥-Video-red)](https://youtu.be/dGXKtqDnm5Q)
